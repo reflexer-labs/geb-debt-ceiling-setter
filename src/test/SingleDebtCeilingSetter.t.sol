@@ -1,6 +1,7 @@
 pragma solidity 0.6.7;
 
 import "ds-test/test.sol";
+import "ds-token/token.sol";
 
 import "../mock/MockTreasury.sol";
 import "../SingleDebtCeilingSetter,sol";
@@ -53,6 +54,7 @@ contract SingleDebtCeilingSetterTest is DSTest {
     MockTreasury treasury;
     MockSAFEEngine safeEngine;
     DSToken systemCoin;
+    SingleDebtCeilingSetter ceilingSetter;
 
     bytes32 collateralName = bytes32("ETH-A");
     uint256 baseUpdateCallerReward = 5 ether;
@@ -75,14 +77,43 @@ contract SingleDebtCeilingSetterTest is DSTest {
 
         systemCoin.mint(address(treasury), coinsToMint);
 
+        ceilingSetter = new SingleDebtCeilingSetter(
+            address(safeEngine),
+            address(treasury),
+            collateralName,
+            baseUpdateCallerReward,
+            maxUpdateCallerReward,
+            perSecondCallerRewardIncrease,
+            updateDelay,
+            ceilingPercentageChange,
+            maxCollateralCeiling,
+            minCollateralCeiling
+        );
 
-
-        treasury.setTotalAllowance(address(rateSetter), uint(-1));
-        treasury.setPerBlockAllowance(address(rateSetter), uint(-1));
+        treasury.setTotalAllowance(address(ceilingSetter), uint(-1));
+        treasury.setPerBlockAllowance(address(ceilingSetter), uint(-1));
     }
 
     function test_verify_deployment() public {
+        assertEq(ceilingSetter.maxCollateralCeiling(), maxCollateralCeiling);
+        assertEq(ceilingSetter.minCollateralCeiling(), minCollateralCeiling);
+        assertEq(ceilingSetter.ceilingPercentageChange(), ceilingPercentageChange);
+        assertEq(ceilingSetter.lastUpdateTime(), lastUpdateTime);
+        assertEq(ceilingSetter.updateDelay(), updateDelay);
+        assertEq(ceilingSetter.lastManualUpdateTime(), lastManualUpdateTime);
+        assertEq(ceilingSetter.collateralName(), collateralName);
+        assertEq(ceilingSetter.baseUpdateCallerReward(), baseUpdateCallerReward);
+        assertEq(ceilingSetter.maxUpdateCallerReward(), maxUpdateCallerReward);
+        assertEq(ceilingSetter.maxRewardIncreaseDelay(), maxRewardIncreaseDelay);
+        assertEq(ceilingSetter.perSecondCallerRewardIncrease(), perSecondCallerRewardIncrease);
 
+        assertEq(ceilingSetter.authorizedAccounts(address(this)), 1);
+        assertEq(ceilingSetter.manualSetters(address(this)), 1);
+        assertEq(ceilingSetter.lastManualUpdateTime(), now);
+        assertEq(ceilingSetter.maxRewardIncreaseDelay(), uint(-1));
+
+        assertEq(address(ceilingSetter.safeEngine()), address(safeEngine));
+        assertEq(address(ceilingSetter.treasury()), address(treasury));
     }
     function test_modify_parameters() public {
 
@@ -90,7 +121,7 @@ contract SingleDebtCeilingSetterTest is DSTest {
     function test_add_remove_manual_setters() public {
 
     }
-    function testFail_add_remove_manual_setter_by_invalid_caller() public {
+    /* function testFail_add_remove_manual_setter_by_invalid_caller() public {
 
     }
     function test_getNextCeiling_current_ceiling_zero() public {
@@ -164,5 +195,5 @@ contract SingleDebtCeilingSetterTest is DSTest {
     }
     function test_auto_update_both_global_and_collateral_ceilings_zero() public {
 
-    }
+    } */
 }
