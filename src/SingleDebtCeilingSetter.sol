@@ -48,6 +48,8 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
     uint256 public lastUpdateTime;                  // [timestamp]
     // Enforced gap between calls
     uint256 public updateDelay;                     // [seconds]
+    // Last timestamp of a manual update
+    uint256 public lastManualUpdateTime;            // [seconds]
     // The collateral's name
     bytes32 public collateralName;
 
@@ -85,6 +87,7 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
         ceilingPercentageChange   = ceilingPercentageChange_;
         maxCollateralCeiling      = maxCollateralCeiling_;
         minCollateralCeiling      = minCollateralCeiling_;
+        lastManualUpdateTime      = now;
 
         emit ModifyParameters("updateDelay", updateDelay);
         emit ModifyParameters("ceilingPercentageChange", ceilingPercentageChange);
@@ -196,7 +199,9 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
 
     // --- Manual Updates ---
     function manualUpdateCeiling() external isManualSetter {
+        require(now > lastManualUpdateTime, "SingleDebtCeilingSetter/cannot-update-twice-same-block");
         uint256 nextCollateralCeiling = getNextCollateralCeiling();
+        lastManualUpdateTime = now;
         setCeiling(nextCollateralCeiling);
     }
 
