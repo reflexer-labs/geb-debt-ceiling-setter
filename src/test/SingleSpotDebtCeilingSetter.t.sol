@@ -4,7 +4,7 @@ import "ds-test/test.sol";
 import "ds-token/token.sol";
 
 import "../mock/MockTreasury.sol";
-import "../SingleDebtCeilingSetter.sol";
+import "../SingleSpotDebtCeilingSetter.sol";
 
 abstract contract Hevm {
     function warp(uint256) virtual public;
@@ -48,21 +48,21 @@ contract MockSAFEEngine {
     }
 }
 contract User {
-    function doAddAuthorization(SingleDebtCeilingSetter setter, address usr) public {
+    function doAddAuthorization(SingleSpotDebtCeilingSetter setter, address usr) public {
         setter.addAuthorization(usr);
     }
-    function doAddManualSetter(SingleDebtCeilingSetter setter, address usr) public {
+    function doAddManualSetter(SingleSpotDebtCeilingSetter setter, address usr) public {
         setter.addManualSetter(usr);
     }
 }
 
-contract SingleDebtCeilingSetterTest is DSTest {
+contract SingleSpotDebtCeilingSetterTest is DSTest {
     Hevm hevm;
 
     MockTreasury treasury;
     MockSAFEEngine safeEngine;
     DSToken systemCoin;
-    SingleDebtCeilingSetter ceilingSetter;
+    SingleSpotDebtCeilingSetter ceilingSetter;
 
     User user;
 
@@ -89,7 +89,7 @@ contract SingleDebtCeilingSetterTest is DSTest {
 
         systemCoin.mint(address(treasury), coinsToMint);
 
-        ceilingSetter = new SingleDebtCeilingSetter(
+        ceilingSetter = new SingleSpotDebtCeilingSetter(
             address(safeEngine),
             address(treasury),
             collateralName,

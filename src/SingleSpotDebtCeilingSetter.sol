@@ -21,7 +21,7 @@ abstract contract SAFEEngineLike {
     ) virtual external;
 }
 
-contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
+contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     // --- Auth ---
     mapping (address => uint256) public manualSetters;
     function addManualSetter(address account) external isAuthorized {
@@ -33,7 +33,7 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
         emit RemoveAuthorization(account);
     }
     modifier isManualSetter {
-        require(manualSetters[msg.sender] == 1, "SingleDebtCeilingSetter/not-manual-setter");
+        require(manualSetters[msg.sender] == 1, "SingleSpotDebtCeilingSetter/not-manual-setter");
         _;
     }
 
@@ -73,11 +73,11 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
       uint256 maxCollateralCeiling_,
       uint256 minCollateralCeiling_
     ) public IncreasingTreasuryReimbursement(treasury_, baseUpdateCallerReward_, maxUpdateCallerReward_, perSecondCallerRewardIncrease_) {
-        require(safeEngine_ != address(0), "SingleDebtCeilingSetter/invalid-safe-engine");
-        require(updateDelay_ > 0, "SingleDebtCeilingSetter/invalid-update-delay");
-        require(both(ceilingPercentageChange_ > HUNDRED, ceilingPercentageChange_ <= THOUSAND), "SingleDebtCeilingSetter/invalid-percentage-change");
-        require(minCollateralCeiling_ > 0, "SingleDebtCeilingSetter/invalid-min-ceiling");
-        require(both(maxCollateralCeiling_ > 0, maxCollateralCeiling_ > minCollateralCeiling_), "SingleDebtCeilingSetter/invalid-max-ceiling");
+        require(safeEngine_ != address(0), "SingleSpotDebtCeilingSetter/invalid-safe-engine");
+        require(updateDelay_ > 0, "SingleSpotDebtCeilingSetter/invalid-update-delay");
+        require(both(ceilingPercentageChange_ > HUNDRED, ceilingPercentageChange_ <= THOUSAND), "SingleSpotDebtCeilingSetter/invalid-percentage-change");
+        require(minCollateralCeiling_ > 0, "SingleSpotDebtCeilingSetter/invalid-min-ceiling");
+        require(both(maxCollateralCeiling_ > 0, maxCollateralCeiling_ > minCollateralCeiling_), "SingleSpotDebtCeilingSetter/invalid-max-ceiling");
 
         manualSetters[msg.sender] = 1;
 
@@ -110,10 +110,10 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
     // --- Management ---
     function modifyParameters(bytes32 parameter, address addr) external isAuthorized {
         if (parameter == "treasury") {
-          require(StabilityFeeTreasuryLike(addr).systemCoin() != address(0), "SingleDebtCeilingSetter/treasury-coin-not-set");
+          require(StabilityFeeTreasuryLike(addr).systemCoin() != address(0), "SingleSpotDebtCeilingSetter/treasury-coin-not-set");
           treasury = StabilityFeeTreasuryLike(addr);
         }
-        else revert("SingleDebtCeilingSetter/modify-unrecognized-param");
+        else revert("SingleSpotDebtCeilingSetter/modify-unrecognized-param");
         emit ModifyParameters(
           parameter,
           addr
@@ -121,42 +121,42 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
     }
     function modifyParameters(bytes32 parameter, uint256 val) external isAuthorized {
         if (parameter == "baseUpdateCallerReward") {
-          require(val <= maxUpdateCallerReward, "SingleDebtCeilingSetter/invalid-base-caller-reward");
+          require(val <= maxUpdateCallerReward, "SingleSpotDebtCeilingSetter/invalid-base-caller-reward");
           baseUpdateCallerReward = val;
         }
         else if (parameter == "maxUpdateCallerReward") {
-          require(val >= baseUpdateCallerReward, "SingleDebtCeilingSetter/invalid-max-caller-reward");
+          require(val >= baseUpdateCallerReward, "SingleSpotDebtCeilingSetter/invalid-max-caller-reward");
           maxUpdateCallerReward = val;
         }
         else if (parameter == "perSecondCallerRewardIncrease") {
-          require(val >= RAY, "SingleDebtCeilingSetter/invalid-caller-reward-increase");
+          require(val >= RAY, "SingleSpotDebtCeilingSetter/invalid-caller-reward-increase");
           perSecondCallerRewardIncrease = val;
         }
         else if (parameter == "maxRewardIncreaseDelay") {
-          require(val > 0, "SingleDebtCeilingSetter/invalid-max-increase-delay");
+          require(val > 0, "SingleSpotDebtCeilingSetter/invalid-max-increase-delay");
           maxRewardIncreaseDelay = val;
         }
         else if (parameter == "updateDelay") {
-          require(val >= 0, "SingleDebtCeilingSetter/invalid-call-gap-length");
+          require(val >= 0, "SingleSpotDebtCeilingSetter/invalid-call-gap-length");
           updateDelay = val;
         }
         else if (parameter == "maxCollateralCeiling") {
-          require(both(maxCollateralCeiling > 0, maxCollateralCeiling > minCollateralCeiling), "SingleDebtCeilingSetter/invalid-max-ceiling");
+          require(both(maxCollateralCeiling > 0, maxCollateralCeiling > minCollateralCeiling), "SingleSpotDebtCeilingSetter/invalid-max-ceiling");
           maxCollateralCeiling = val;
         }
         else if (parameter == "minCollateralCeiling") {
-          require(minCollateralCeiling > 0, "SingleDebtCeilingSetter/invalid-min-ceiling");
+          require(minCollateralCeiling > 0, "SingleSpotDebtCeilingSetter/invalid-min-ceiling");
           minCollateralCeiling = val;
         }
         else if (parameter == "ceilingPercentageChange") {
-          require(both(val > HUNDRED, val <= THOUSAND), "SingleDebtCeilingSetter/invalid-percentage-change");
+          require(both(val > HUNDRED, val <= THOUSAND), "SingleSpotDebtCeilingSetter/invalid-percentage-change");
           ceilingPercentageChange = val;
         }
         else if (parameter == "lastUpdateTime") {
-          require(val > now, "SingleDebtCeilingSetter/invalid-update-time");
+          require(val > now, "SingleSpotDebtCeilingSetter/invalid-update-time");
           lastUpdateTime = val;
         }
-        else revert("SingleDebtCeilingSetter/modify-unrecognized-param");
+        else revert("SingleSpotDebtCeilingSetter/modify-unrecognized-param");
         emit ModifyParameters(
           parameter,
           val
@@ -180,9 +180,9 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
     // --- Auto Updates ---
     function autoUpdateCeiling(address feeReceiver) external {
         // Check that the update time is not in the future
-        require(lastUpdateTime < now, "SingleDebtCeilingSetter/update-time-in-the-future");
+        require(lastUpdateTime < now, "SingleSpotDebtCeilingSetter/update-time-in-the-future");
         // Check delay between calls
-        require(either(subtract(now, lastUpdateTime) >= updateDelay, lastUpdateTime == 0), "SingleDebtCeilingSetter/wait-more");
+        require(either(subtract(now, lastUpdateTime) >= updateDelay, lastUpdateTime == 0), "SingleSpotDebtCeilingSetter/wait-more");
 
         // Get the caller's reward
         uint256 callerReward = getCallerReward(lastUpdateTime, updateDelay);
@@ -199,7 +199,7 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
 
     // --- Manual Updates ---
     function manualUpdateCeiling() external isManualSetter {
-        require(now > lastManualUpdateTime, "SingleDebtCeilingSetter/cannot-update-twice-same-block");
+        require(now > lastManualUpdateTime, "SingleSpotDebtCeilingSetter/cannot-update-twice-same-block");
         uint256 nextCollateralCeiling = getNextCollateralCeiling();
         lastManualUpdateTime = now;
         setCeiling(nextCollateralCeiling);
