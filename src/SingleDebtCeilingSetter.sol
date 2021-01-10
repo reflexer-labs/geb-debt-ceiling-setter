@@ -216,7 +216,7 @@ contract SingleDebtCeilingSetter is IncreasingTreasuryReimbursement {
         uint256 updatedCeiling = multiply(adjustedCurrentDebt, ceilingPercentageChange) / HUNDRED;
 
         if (updatedCeiling < minCollateralCeiling) return minCollateralCeiling;
-        else if (updatedCeiling > maxCollateralCeiling) return maxCollateralCeiling;
+        else if (updatedCeiling >= maxCollateralCeiling) return maxCollateralCeiling;
 
         return updatedCeiling;
     }
