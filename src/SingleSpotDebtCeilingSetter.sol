@@ -100,9 +100,6 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     uint256 constant THOUSAND = 1000;
 
     // --- Boolean Logic ---
-    function either(bool x, bool y) internal pure returns (bool z) {
-        assembly{ z := or(x, y)}
-    }
     function both(bool x, bool y) internal pure returns (bool z) {
         assembly{ z := and(x, y)}
     }
