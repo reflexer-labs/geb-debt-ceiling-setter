@@ -217,6 +217,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
 
         if (updatedCeiling < minCollateralCeiling) return minCollateralCeiling;
         else if (updatedCeiling >= maxCollateralCeiling) return maxCollateralCeiling;
+        else if (updatedCeiling < adjustedCurrentDebt) return adjustedCurrentDebt;
 
         return updatedCeiling;
     }
