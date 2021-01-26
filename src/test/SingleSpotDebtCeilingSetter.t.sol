@@ -4,6 +4,7 @@ import "ds-test/test.sol";
 import "ds-token/token.sol";
 
 import "../mock/MockTreasury.sol";
+import "../mock/MockOracleRelayer.sol";
 import "../SingleSpotDebtCeilingSetter.sol";
 
 abstract contract Hevm {
@@ -59,6 +60,7 @@ contract User {
 contract SingleSpotDebtCeilingSetterTest is DSTest {
     Hevm hevm;
 
+    MockOracleRelayer oracleRelayer;
     MockTreasury treasury;
     MockSAFEEngine safeEngine;
     DSToken systemCoin;
@@ -87,10 +89,13 @@ contract SingleSpotDebtCeilingSetterTest is DSTest {
         safeEngine = new MockSAFEEngine();
         safeEngine.modifyParameters(collateralName, "accumulatedRate", 1E27);
 
+        oracleRelayer = new MockOracleRelayer();
+
         systemCoin.mint(address(treasury), coinsToMint);
 
         ceilingSetter = new SingleSpotDebtCeilingSetter(
             address(safeEngine),
+            address(oracleRelayer),
             address(treasury),
             collateralName,
             baseUpdateCallerReward,
@@ -205,6 +210,96 @@ contract SingleSpotDebtCeilingSetterTest is DSTest {
 
         safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
         assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_decreased_negative_rate() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 - 5);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_decreased_positive_rate() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 + 5);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_decreased_negative_rate_block_decrease() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 - 5);
+        ceilingSetter.modifyParameters("blockDecreaseWhenDevalue", 1);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
+
+        assertTrue(!ceilingSetter.allowsDecrease(1E27 - 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
+        assertTrue(!ceilingSetter.allowsIncrease(1E27 - 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
+        assertEq(ceilingSetter.getNextCollateralCeiling(), minCollateralCeiling * 5);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_decreased_positive_rate_block_decrease() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 + 5);
+        ceilingSetter.modifyParameters("blockDecreaseWhenDevalue", 1);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_decreased_negative_rate_block_increase() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 - 5);
+        ceilingSetter.modifyParameters("blockIncreaseWhenRevalue", 1);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_decreased_positive_rate_block_increase() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 + 5);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
+        ceilingSetter.modifyParameters("blockIncreaseWhenRevalue", 1);
+
+        assertTrue(ceilingSetter.allowsDecrease(1E27 + 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
+        assertTrue(!ceilingSetter.allowsIncrease(1E27 + 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_increased_negative_rate() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 - 5);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 9 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 10.8E45);
+    }
+    function test_getNextCeiling_current_collateral_ceiling_increased_positive_rate() public {
+        oracleRelayer.modifyParameters("redemptionRate", 1E27 + 5);
+
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling * 5);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 5 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 6E45);
+
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 9 / 1e27);
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 10.8E45);
     }
     function testFail_manual_update_twice_same_block() public {
         hevm.warp(now + 1);
@@ -424,6 +519,119 @@ contract SingleSpotDebtCeilingSetterTest is DSTest {
 
         // Run
         for (uint i = 0; i < debtAmounts.length; i++) {
+            safeEngine.modifyParameters(collateralName, "debtAmount", debtAmounts[i] / 1E27);
+            ceilingSetter.autoUpdateCeiling(address(0x1));
+
+            (debtAmount, , , currentDebtCeiling, ,) = safeEngine.collateralTypes(collateralName);
+            assertEq(currentDebtCeiling, resultingCeilings[i]);
+            assertEq(debtAmount, debtAmounts[i] / 1E27);
+            assertEq(safeEngine.globalDebtCeiling(), uint(-1));
+            assertEq(ceilingSetter.lastUpdateTime(), now);
+
+            hevm.warp(now + updateDelay);
+        }
+
+        assertEq(systemCoin.balanceOf(address(0x1)), baseUpdateCallerReward * debtAmounts.length);
+    }
+    function test_multi_auto_update_both_blocks_active_null_rate() public {
+        safeEngine.modifyParameters("globalDebtCeiling", uint(-1));
+        ceilingSetter.modifyParameters("blockIncreaseWhenRevalue", 1);
+        ceilingSetter.modifyParameters("blockDecreaseWhenDevalue", 1);
+
+        // Scenario
+        uint256[5] memory debtAmounts = [
+          uint(minCollateralCeiling * 5), uint(minCollateralCeiling * 3), uint(minCollateralCeiling * 35 / 10), uint(minCollateralCeiling * 38 / 10), uint(minCollateralCeiling * 41 / 10)
+        ];
+        uint256[5] memory resultingCeilings = [
+          uint(6E45), uint(3.6E45), uint(4.2E45), uint(4.56E45), uint(4.92E45)
+        ];
+        uint256 initialCeiling = minCollateralCeiling * 5;
+
+        // Setup
+        safeEngine.modifyParameters(collateralName, "debtCeiling", initialCeiling);
+        uint256 debtAmount; uint256 currentDebtCeiling;
+        hevm.warp(now + 1);
+
+        // Run
+        for (uint i = 0; i < debtAmounts.length; i++) {
+            safeEngine.modifyParameters(collateralName, "debtAmount", debtAmounts[i] / 1E27);
+            ceilingSetter.autoUpdateCeiling(address(0x1));
+
+            (debtAmount, , , currentDebtCeiling, ,) = safeEngine.collateralTypes(collateralName);
+            assertEq(currentDebtCeiling, resultingCeilings[i]);
+            assertEq(debtAmount, debtAmounts[i] / 1E27);
+            assertEq(safeEngine.globalDebtCeiling(), uint(-1));
+            assertEq(ceilingSetter.lastUpdateTime(), now);
+
+            hevm.warp(now + updateDelay);
+        }
+
+        assertEq(systemCoin.balanceOf(address(0x1)), baseUpdateCallerReward * debtAmounts.length);
+    }
+    function test_multi_auto_update_both_blocks_active_variable_rate_one() public {
+        safeEngine.modifyParameters("globalDebtCeiling", uint(-1));
+        ceilingSetter.modifyParameters("blockIncreaseWhenRevalue", 1);
+        ceilingSetter.modifyParameters("blockDecreaseWhenDevalue", 1);
+
+        // Scenario
+        uint256[5] memory redemptionRates = [
+          uint(1E27), uint(1E27 + 5), uint(1E27 - 5), uint(1E27 - 5), uint(1E27 + 5)
+        ];
+        uint256[5] memory debtAmounts = [
+          uint(minCollateralCeiling * 5), uint(minCollateralCeiling * 3), uint(minCollateralCeiling * 35 / 10), uint(minCollateralCeiling * 38 / 10), uint(minCollateralCeiling * 36 / 10)
+        ];
+        uint256[5] memory resultingCeilings = [
+          uint(6E45), uint(3.6E45), uint(4.2E45), uint(4.56E45), uint(4.32E45)
+        ];
+        uint256 initialCeiling = minCollateralCeiling * 5;
+
+        // Setup
+        safeEngine.modifyParameters(collateralName, "debtCeiling", initialCeiling);
+        uint256 debtAmount; uint256 currentDebtCeiling;
+        hevm.warp(now + 1);
+
+        // Run
+        for (uint i = 0; i < debtAmounts.length; i++) {
+            oracleRelayer.modifyParameters("redemptionRate", redemptionRates[i]);
+            safeEngine.modifyParameters(collateralName, "debtAmount", debtAmounts[i] / 1E27);
+            ceilingSetter.autoUpdateCeiling(address(0x1));
+
+            (debtAmount, , , currentDebtCeiling, ,) = safeEngine.collateralTypes(collateralName);
+            assertEq(currentDebtCeiling, resultingCeilings[i]);
+            assertEq(debtAmount, debtAmounts[i] / 1E27);
+            assertEq(safeEngine.globalDebtCeiling(), uint(-1));
+            assertEq(ceilingSetter.lastUpdateTime(), now);
+
+            hevm.warp(now + updateDelay);
+        }
+
+        assertEq(systemCoin.balanceOf(address(0x1)), baseUpdateCallerReward * debtAmounts.length);
+    }
+    function test_multi_auto_update_both_blocks_active_variable_rate_two() public {
+        safeEngine.modifyParameters("globalDebtCeiling", uint(-1));
+        ceilingSetter.modifyParameters("blockIncreaseWhenRevalue", 1);
+        ceilingSetter.modifyParameters("blockDecreaseWhenDevalue", 1);
+
+        // Scenario
+        uint256[5] memory redemptionRates = [
+          uint(1E27), uint(1E27 - 5), uint(1E27 + 5), uint(1E27 + 5), uint(1E27 - 5)
+        ];
+        uint256[5] memory debtAmounts = [
+          uint(minCollateralCeiling * 5), uint(minCollateralCeiling * 3), uint(minCollateralCeiling * 7), uint(minCollateralCeiling * 8), uint(minCollateralCeiling * 2)
+        ];
+        uint256[5] memory resultingCeilings = [
+          uint(6E45), uint(6E45), uint(6E45), uint(6E45), uint(6E45)
+        ];
+        uint256 initialCeiling = minCollateralCeiling * 5;
+
+        // Setup
+        safeEngine.modifyParameters(collateralName, "debtCeiling", initialCeiling);
+        uint256 debtAmount; uint256 currentDebtCeiling;
+        hevm.warp(now + 1);
+
+        // Run
+        for (uint i = 0; i < debtAmounts.length; i++) {
+            oracleRelayer.modifyParameters("redemptionRate", redemptionRates[i]);
             safeEngine.modifyParameters(collateralName, "debtAmount", debtAmounts[i] / 1E27);
             ceilingSetter.autoUpdateCeiling(address(0x1));
 
