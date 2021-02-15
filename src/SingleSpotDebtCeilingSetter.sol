@@ -1,4 +1,4 @@
-pragma solidity ^0.6.7;
+pragma solidity 0.6.7;
 
 import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
 
@@ -26,15 +26,27 @@ abstract contract OracleRelayerLike {
 
 contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     // --- Auth ---
+    // Mapping of addresses that are allowed to manually recompute the debt ceiling (without being rewarded for it)
     mapping (address => uint256) public manualSetters;
+    /*
+    * @notify Add a new manual setter
+    * @param account The address of the new manual setter
+    */
     function addManualSetter(address account) external isAuthorized {
         manualSetters[account] = 1;
-        emit AddAuthorization(account);
+        emit AddManualSetter(account);
     }
+    /*
+    * @notify Remove a manual setter
+    * @param account The address of the manual setter to remove
+    */
     function removeManualSetter(address account) external isAuthorized {
         manualSetters[account] = 0;
-        emit RemoveAuthorization(account);
+        emit RemoveManualSetter(account);
     }
+    /*
+    * @notice Modifier for checking that the msg.sender is a whitelisted manual setter
+    */
     modifier isManualSetter {
         require(manualSetters[msg.sender] == 1, "SingleSpotDebtCeilingSetter/not-manual-setter");
         _;
