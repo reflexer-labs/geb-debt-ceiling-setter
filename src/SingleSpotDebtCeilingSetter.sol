@@ -249,7 +249,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
         uint256 nextCollateralCeiling = getNextCollateralCeiling();
         setCeiling(nextCollateralCeiling);
 
-        // Pay the caller for updating the rate
+        // Pay the caller for updating the ceiling
         rewardCaller(feeReceiver, callerReward);
     }
 
