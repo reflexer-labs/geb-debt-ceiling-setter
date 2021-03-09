@@ -45,6 +45,7 @@ contract MockSAFEEngine {
         else if (parameter == "accumulatedRate") collateralTypes[collateralType].accumulatedRate = data;
         else if (parameter == "debtCeiling") collateralTypes[collateralType].debtCeiling = data;
         else if (parameter == "debtAmount") collateralTypes[collateralType].debtAmount = data;
+        else if (parameter == "debtFloor") collateralTypes[collateralType].debtFloor = data;
         else revert("SAFEEngine/modify-unrecognized-param");
     }
 }
@@ -231,6 +232,20 @@ contract SingleSpotDebtCeilingSetterTest is DSTest {
         safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
         assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
     }
+    function test_getNextCeiling_floor_higher_than_ceiling_higher_than_computed() public {
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling / 1e27);
+        safeEngine.modifyParameters(collateralName, "debtFloor", minCollateralCeiling * 5);
+
+        assertEq(ceilingSetter.getNextCollateralCeiling(), minCollateralCeiling * 5);
+    }
+    function test_getNextCeiling_floor_higher_than_ceiling_lower_than_computed() public {
+        safeEngine.modifyParameters(collateralName, "debtCeiling", minCollateralCeiling);
+        safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling / 1e27);
+        safeEngine.modifyParameters(collateralName, "debtFloor", minCollateralCeiling + 10);
+
+        assertEq(ceilingSetter.getNextCollateralCeiling(), 1.2E45);
+    }
     function test_getNextCeiling_current_collateral_ceiling_decreased_negative_rate_block_decrease() public {
         oracleRelayer.modifyParameters("redemptionRate", 1E27 - 5);
         ceilingSetter.modifyParameters("blockDecreaseWhenDevalue", 1);
@@ -241,8 +256,8 @@ contract SingleSpotDebtCeilingSetterTest is DSTest {
 
         safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
 
-        assertTrue(!ceilingSetter.allowsDecrease(1E27 - 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
-        assertTrue(!ceilingSetter.allowsIncrease(1E27 - 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
+        assertTrue(!ceilingSetter.allowsDecrease(1E27 - 5, minCollateralCeiling * 5, ceilingSetter.getRawUpdatedCeiling()));
+        assertTrue(!ceilingSetter.allowsIncrease(1E27 - 5, minCollateralCeiling * 5, ceilingSetter.getRawUpdatedCeiling()));
         assertEq(ceilingSetter.getNextCollateralCeiling(), minCollateralCeiling * 5);
     }
     function test_getNextCeiling_current_collateral_ceiling_decreased_positive_rate_block_decrease() public {
@@ -277,8 +292,8 @@ contract SingleSpotDebtCeilingSetterTest is DSTest {
         safeEngine.modifyParameters(collateralName, "debtAmount", minCollateralCeiling * 2 / 1e27);
         ceilingSetter.modifyParameters("blockIncreaseWhenRevalue", 1);
 
-        assertTrue(ceilingSetter.allowsDecrease(1E27 + 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
-        assertTrue(!ceilingSetter.allowsIncrease(1E27 + 5, minCollateralCeiling * 5, ceilingSetter.getUpdatedCeiling()));
+        assertTrue(ceilingSetter.allowsDecrease(1E27 + 5, minCollateralCeiling * 5, ceilingSetter.getRawUpdatedCeiling()));
+        assertTrue(!ceilingSetter.allowsIncrease(1E27 + 5, minCollateralCeiling * 5, ceilingSetter.getRawUpdatedCeiling()));
         assertEq(ceilingSetter.getNextCollateralCeiling(), 2.4E45);
     }
     function test_getNextCeiling_current_collateral_ceiling_increased_negative_rate() public {

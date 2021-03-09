@@ -7,7 +7,8 @@ abstract contract SAFEEngineLike {
         uint256 debtAmount,        // [wad]
         uint256 accumulatedRate,   // [ray]
         uint256 safetyPrice,       // [ray]
-        uint256 debtCeiling        // [rad]
+        uint256 debtCeiling,       // [rad]
+        uint256 debtFloor          // [rad]
     );
     function globalDebtCeiling() virtual public view returns (uint256);
     function modifyParameters(
@@ -59,7 +60,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     uint256 public minCollateralCeiling;            // [rad]
     // Percentage change applied to the collateral's debt ceiling
     uint256 public ceilingPercentageChange;         // [hundred]
-    // When the price feed was last updated
+    // When the debt ceiling was last updated
     uint256 public lastUpdateTime;                  // [timestamp]
     // Enforced gap between calls
     uint256 public updateDelay;                     // [seconds]
@@ -116,6 +117,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
         // Check that the oracleRelayer has the redemption rate in it
         oracleRelayer.redemptionRate();
 
+	      emit AddManualSetter(msg.sender);
         emit ModifyParameters("updateDelay", updateDelay);
         emit ModifyParameters("ceilingPercentageChange", ceilingPercentageChange);
         emit ModifyParameters("maxCollateralCeiling", maxCollateralCeiling);
@@ -125,6 +127,10 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     // --- Math ---
     uint256 constant HUNDRED  = 100;
     uint256 constant THOUSAND = 1000;
+
+    function maximum(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = (x <= y) ? y : x;
+    }
 
     // --- Boolean Logic ---
     function both(bool x, bool y) internal pure returns (bool z) {
@@ -217,7 +223,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     * @param nextDebtCeiling The new ceiling to set
     */
     function setCeiling(uint256 nextDebtCeiling) internal {
-        (uint256 debtAmount, uint256 accumulatedRate, uint256 safetyPrice, uint256 currentDebtCeiling) = safeEngine.collateralTypes(collateralName);
+        (uint256 debtAmount, uint256 accumulatedRate, uint256 safetyPrice, uint256 currentDebtCeiling,) = safeEngine.collateralTypes(collateralName);
 
         if (safeEngine.globalDebtCeiling() < nextDebtCeiling) {
             safeEngine.modifyParameters("globalDebtCeiling", nextDebtCeiling);
@@ -269,13 +275,14 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     * @notify View function meant to return the new and upcoming debt ceiling. It also applies checks regarding re or devaluation blocks
     */
     function getNextCollateralCeiling() public view returns (uint256) {
-        (uint256 debtAmount, uint256 accumulatedRate, uint256 safetyPrice, uint256 currentDebtCeiling) = safeEngine.collateralTypes(collateralName);
-        uint256 adjustedCurrentDebt = multiply(debtAmount, accumulatedRate);
+        (uint256 debtAmount, uint256 accumulatedRate, uint256 safetyPrice, uint256 currentDebtCeiling, uint256 debtFloor) = safeEngine.collateralTypes(collateralName);
+        uint256 adjustedCurrentDebt   = multiply(debtAmount, accumulatedRate);
+        uint256 lowestPossibleCeiling = maximum(debtFloor, minCollateralCeiling);
 
-        if (debtAmount == 0) return minCollateralCeiling;
+        if (debtAmount == 0) return lowestPossibleCeiling;
 
         uint256 updatedCeiling = multiply(adjustedCurrentDebt, ceilingPercentageChange) / HUNDRED;
-        if (updatedCeiling <= minCollateralCeiling) return minCollateralCeiling;
+        if (updatedCeiling <= lowestPossibleCeiling) return lowestPossibleCeiling;
         else if (updatedCeiling >= maxCollateralCeiling) return maxCollateralCeiling;
 
         uint256 redemptionRate = oracleRelayer.redemptionRate();
@@ -288,15 +295,18 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
         return currentDebtCeiling;
     }
     /*
-    * @notify View function meant to return the new and upcoming debt ceiling
+    * @notify View function meant to return the new and upcoming debt ceiling. It does not perform checks for boundaries
     */
-    function getUpdatedCeiling() external view returns (uint256) {
-        (uint256 debtAmount, uint256 accumulatedRate, uint256 safetyPrice, uint256 currentDebtCeiling) = safeEngine.collateralTypes(collateralName);
+    function getRawUpdatedCeiling() external view returns (uint256) {
+        (uint256 debtAmount, uint256 accumulatedRate, uint256 safetyPrice, uint256 currentDebtCeiling, uint256 debtFloor) = safeEngine.collateralTypes(collateralName);
         uint256 adjustedCurrentDebt = multiply(debtAmount, accumulatedRate);
         return multiply(adjustedCurrentDebt, ceilingPercentageChange) / HUNDRED;
     }
     /*
     * @notify View function meant to return whether an increase in the debt ceiling is currently allowed
+    * @param redemptionRate A custom redemption rate
+    * @param currentDebtCeiling The current debt ceiling for the collateral type with collateralName
+    * @param updatedCeiling The new ceiling computed for the collateral type with collateralName
     */
     function allowsIncrease(uint256 redemptionRate, uint256 currentDebtCeiling, uint256 updatedCeiling) public view returns (bool allowIncrease) {
         allowIncrease = either(redemptionRate <= RAY, both(redemptionRate > RAY, blockIncreaseWhenRevalue == 0));
@@ -304,6 +314,9 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     }
     /*
     * @notify View function meant to return whether a decrease in the debt ceiling is currently allowed
+    * @param redemptionRate A custom redemption rate
+    * @param currentDebtCeiling The current debt ceiling for the collateral type with collateralName
+    * @param updatedCeiling The new ceiling computed for the collateral type with collateralName
     */
     function allowsDecrease(uint256 redemptionRate, uint256 currentDebtCeiling, uint256 updatedCeiling) public view returns (bool allowDecrease) {
         allowDecrease = either(redemptionRate >= RAY, both(redemptionRate < RAY, blockDecreaseWhenDevalue == 0));
