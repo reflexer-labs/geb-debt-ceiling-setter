@@ -187,11 +187,11 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
           updateDelay = val;
         }
         else if (parameter == "maxCollateralCeiling") {
-          require(both(maxCollateralCeiling > 0, maxCollateralCeiling > minCollateralCeiling), "SingleSpotDebtCeilingSetter/invalid-max-ceiling");
+          require(both(val > 0, val > minCollateralCeiling), "SingleSpotDebtCeilingSetter/invalid-max-ceiling");
           maxCollateralCeiling = val;
         }
         else if (parameter == "minCollateralCeiling") {
-          require(minCollateralCeiling > 0, "SingleSpotDebtCeilingSetter/invalid-min-ceiling");
+          require(both(val > 0, val < maxCollateralCeiling), "SingleSpotDebtCeilingSetter/invalid-min-ceiling");
           minCollateralCeiling = val;
         }
         else if (parameter == "ceilingPercentageChange") {
