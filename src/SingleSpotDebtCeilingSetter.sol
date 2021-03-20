@@ -1,6 +1,6 @@
 pragma solidity 0.6.7;
 
-import "geb-treasury-reimbursement/IncreasingTreasuryReimbursement.sol";
+import "geb-treasury-reimbursement/reimbursement/IncreasingTreasuryReimbursement.sol";
 
 abstract contract SAFEEngineLike {
     function collateralTypes(bytes32) virtual public view returns (
