@@ -117,7 +117,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
         // Check that the oracleRelayer has the redemption rate in it
         oracleRelayer.redemptionRate();
 
-	      emit AddManualSetter(msg.sender);
+	emit AddManualSetter(msg.sender);
         emit ModifyParameters("updateDelay", updateDelay);
         emit ModifyParameters("ceilingPercentageChange", ceilingPercentageChange);
         emit ModifyParameters("maxCollateralCeiling", maxCollateralCeiling);
