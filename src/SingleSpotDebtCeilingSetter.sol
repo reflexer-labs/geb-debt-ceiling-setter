@@ -58,7 +58,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     uint256 public maxCollateralCeiling;            // [rad]
     // The min amount of system coins that must be generated using this collateral type
     uint256 public minCollateralCeiling;            // [rad]
-    // Percentage change applied to the collateral's debt ceiling
+    // Premium on top of the current amount of debt (backed by the collateral type with collateralName) minted. This is used to calculate a new ceiling
     uint256 public ceilingPercentageChange;         // [hundred]
     // When the debt ceiling was last updated
     uint256 public lastUpdateTime;                  // [timestamp]
