@@ -62,7 +62,7 @@ contract SingleSpotDebtCeilingSetter is IncreasingTreasuryReimbursement {
     uint256 public ceilingPercentageChange;         // [hundred]
     // When the debt ceiling was last updated
     uint256 public lastUpdateTime;                  // [timestamp]
-    // Enforced gap between calls
+    // Enforced time gap between calls
     uint256 public updateDelay;                     // [seconds]
     // Last timestamp of a manual update
     uint256 public lastManualUpdateTime;            // [seconds]
